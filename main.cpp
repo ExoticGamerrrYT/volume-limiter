@@ -61,14 +61,13 @@ static float LoadMaxVolume()
     if (!file.is_open())
     {
         // El archivo no existe: crearlo con la configuración por defecto.
-        FILE* pNew = _wfopen(cfgPath, L"w, ccs=UTF-8");
-        if (pNew)
+        std::ofstream pNew(cfgPath);
+        if (pNew.is_open())
         {
-            fputs("# volume-limiter configuration\n"
-                  "# Volumen maximo permitido: valor entre 0.0 (silencio) y 1.0 (100 %).\n"
-                  "# Ejemplos: 0.20 = 20 %   |   0.50 = 50 %   |   1.0 = sin limite\n"
-                  "max_volume=0.20\n", pNew);
-            fclose(pNew);
+            pNew << "# volume-limiter configuration\n"
+                    "# Volumen maximo permitido: valor entre 0.0 (silencio) y 1.0 (100 %).\n"
+                    "# Ejemplos: 0.20 = 20 %   |   0.50 = 50 %   |   1.0 = sin limite\n"
+                    "max_volume=0.20\n";
         }
         return MAX_VOLUME_DEFAULT;
     }
