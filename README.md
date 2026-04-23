@@ -52,12 +52,32 @@ Edit `max_volume` to any value between `0.0` and `1.0` and restart the process �
 
 > **Note:** `volume-limiter.cfg` is excluded from version control (`.gitignore`). Each machine keeps its own local copy.
 
-## Running at startup (optional)
+## Running at startup (with high priority)
 
-To have the limiter start automatically with Windows, add the compiled `.exe` to the `Shell:startup` folder:
+The included **`install-startup.bat`** registers a Windows Scheduled Task that launches `volume-limiter.exe` automatically at every logon with **Above Normal** CPU priority.
 
-1. Press `Win + R`, type `shell:startup`, press Enter.
-2. Copy `volume-limiter.exe` into that folder.
+### Requirements
+
+- `volume-limiter.exe` must be in the **same folder** as `install-startup.bat`.
+- The script must be run as **Administrator** (it will prompt for elevation automatically).
+
+### Install
+
+Double-click `install-startup.bat` (or run it from an elevated command prompt). It will:
+
+1. Elevate to Administrator if needed.
+2. Register a task named **`VolumeLimiter`** via the Windows Task Scheduler.
+3. Configure it to run at logon with **Above Normal priority** and no time limit.
+
+### Uninstall
+
+To remove the scheduled task completely, run the following in an elevated command prompt:
+
+```cmd
+schtasks /delete /tn "VolumeLimiter" /f
+```
+
+Or open **Task Scheduler** → find `VolumeLimiter` → right-click → **Delete**.
 
 ## Stopping the process
 
