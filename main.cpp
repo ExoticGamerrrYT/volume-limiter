@@ -18,16 +18,69 @@
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
+#include <fstream>
+#include <string>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIGURACIÓN
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Volumen máximo permitido (0.0f – 1.0f). 0.20f = 20 %.
-static constexpr float  MAX_VOLUME       = 0.20f;
+// Volumen máximo permitido por defecto (0.0f – 1.0f). 0.20f = 20 %.
+static constexpr float  MAX_VOLUME_DEFAULT = 0.20f;
 
 // Intervalo de comprobación en milisegundos.
-static constexpr DWORD  TICK_INTERVAL_MS = 500; // cada 500 ms
+static constexpr DWORD  TICK_INTERVAL_MS   = 500; // cada 500 ms
+
+// Volumen máximo efectivo; se carga desde el archivo de configuración al inicio.
+static float g_maxVolume = MAX_VOLUME_DEFAULT;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lee el volumen máximo desde «volume-limiter.cfg» ubicado junto al ejecutable.
+// Formato del archivo (líneas de comentario comienzan con # o ;):
+//   max_volume=0.20
+// Si el archivo no existe o el valor está fuera de rango, usa MAX_VOLUME_DEFAULT.
+// ─────────────────────────────────────────────────────────────────────────────
+static float LoadMaxVolume()
+{
+    wchar_t exePath[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+    // Truncar tras la última barra para obtener el directorio del ejecutable.
+    wchar_t* lastSlash = wcsrchr(exePath, L'\\');
+    if (lastSlash)
+        *(lastSlash + 1) = L'\0';
+    else
+        exePath[0] = L'\0';
+
+    wchar_t cfgPath[MAX_PATH] = {};
+    wcscpy_s(cfgPath, exePath);
+    wcscat_s(cfgPath, L"volume-limiter.cfg");
+
+    std::ifstream file(cfgPath);
+    if (!file.is_open())
+        return MAX_VOLUME_DEFAULT;
+
+    const std::string key = "max_volume=";
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.empty() || line[0] == '#' || line[0] == ';')
+            continue;
+
+        if (line.rfind(key, 0) == 0)
+        {
+            try
+            {
+                float val = std::stof(line.substr(key.size()));
+                if (val >= 0.0f && val <= 1.0f)
+                    return val;
+            }
+            catch (...) {}
+        }
+    }
+
+    return MAX_VOLUME_DEFAULT;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Estado global del endpoint de audio (inicializado una sola vez en WinMain)
@@ -78,8 +131,8 @@ static void DoWork()
     if (FAILED(g_pEndpointVolume->GetMasterVolumeLevelScalar(&fLevel)))
         return;
 
-    if (fLevel > MAX_VOLUME)
-        g_pEndpointVolume->SetMasterVolumeLevelScalar(MAX_VOLUME, nullptr);
+    if (fLevel > g_maxVolume)
+        g_pEndpointVolume->SetMasterVolumeLevelScalar(g_maxVolume, nullptr);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +148,8 @@ int WINAPI WinMain(
     (void)hPrevInstance;
     (void)lpCmdLine;
     (void)nCmdShow;
+
+    g_maxVolume = LoadMaxVolume();
 
     if (!InitAudio())
     {
