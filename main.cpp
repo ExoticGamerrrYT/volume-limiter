@@ -20,6 +20,7 @@
 #include <endpointvolume.h>
 #include <fstream>
 #include <string>
+#include <cstdio>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIGURACIÓN
@@ -58,7 +59,19 @@ static float LoadMaxVolume()
 
     std::ifstream file(cfgPath);
     if (!file.is_open())
+    {
+        // El archivo no existe: crearlo con la configuración por defecto.
+        FILE* pNew = _wfopen(cfgPath, L"w, ccs=UTF-8");
+        if (pNew)
+        {
+            fputs("# volume-limiter configuration\n"
+                  "# Volumen maximo permitido: valor entre 0.0 (silencio) y 1.0 (100 %).\n"
+                  "# Ejemplos: 0.20 = 20 %   |   0.50 = 50 %   |   1.0 = sin limite\n"
+                  "max_volume=0.20\n", pNew);
+            fclose(pNew);
+        }
         return MAX_VOLUME_DEFAULT;
+    }
 
     const std::string key = "max_volume=";
     std::string line;

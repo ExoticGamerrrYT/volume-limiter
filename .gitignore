@@ -28,7 +28,11 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 
+# Config (user-local, generated at runtime)
+*.cfg
+
 # Logs and temp files
 *.log
 *.tmp
 *.bak
+*.cfg

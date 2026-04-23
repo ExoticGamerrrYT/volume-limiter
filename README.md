@@ -37,17 +37,20 @@ g++ main.cpp -o volume-limiter.exe -mwindows -static -O2 -s -std=c++17 -lole32 -
 
 ## Configuration
 
-All tuneable values are at the top of `main.cpp`:
+The limiter reads its settings from **`volume-limiter.cfg`**, which must be placed in the same directory as the executable.
 
-```cpp
-// Maximum allowed volume (0.0f – 1.0f). 0.20f = 20 %.
-static constexpr float MAX_VOLUME = 0.20f;
+If the file does not exist when the process starts, it is **created automatically** with the default configuration:
 
-// How often the volume is checked, in milliseconds.
-static constexpr DWORD TICK_INTERVAL_MS = 500;
+```ini
+# volume-limiter configuration
+# Volumen maximo permitido: valor entre 0.0 (silencio) y 1.0 (100 %).
+# Ejemplos: 0.20 = 20 %   |   0.50 = 50 %   |   1.0 = sin limite
+max_volume=0.20
 ```
 
-Change `MAX_VOLUME` to any value between `0.0f` and `1.0f` and recompile.
+Edit `max_volume` to any value between `0.0` and `1.0` and restart the process — no recompile needed.
+
+> **Note:** `volume-limiter.cfg` is excluded from version control (`.gitignore`). Each machine keeps its own local copy.
 
 ## Running at startup (optional)
 
