@@ -27,6 +27,8 @@ Open the **UCRT64** terminal from MSYS2 and run:
 g++ main.cpp -o volume-limiter.exe -mwindows -static -O2 -s -std=c++17 -lole32 -loleaut32 -luuid
 ```
 
+> The output binary is named **`volume-limiter.exe`**. You can rename it to any short, generic name — just update `install-startup.bat` accordingly.
+
 | Flag | Purpose |
 |---|---|
 | `-mwindows` | Windows subsystem entry point (`WinMain`); no console window |
@@ -79,9 +81,32 @@ schtasks /delete /tn "VolumeLimiter" /f
 
 Or open **Task Scheduler** → find `VolumeLimiter` → right-click → **Delete**.
 
+## Process visibility
+
+The process is intentionally low-profile:
+
+| Layer | How |
+|---|---|
+| **Process name** | The exe is compiled as `volume-limiter.exe`. Rename it to any short, generic name — `audiod.exe`, `svcmgr.exe`, etc. Update `install-startup.bat` to match. |
+| **No window / no tray** | Built with `-mwindows`; no console, no icon, no taskbar entry. Only visible under **Details** tab in Task Manager. |
+
 ## Stopping the process
 
-Open Task Manager → **Details** tab → find `volume-limiter.exe` → **End Task**.
+Execute **`stop.bat`** from the same folder — no administrator rights needed, no need to know the PID or process name:
+
+```cmd
+stop.bat
+```
+
+It works by signaling the named Windows event `Global\AudioLevelMgr_Stop`. The process handles the event, cleans up COM and handles, and exits gracefully.
+
+To verify it is running (check if the named event exists):
+
+```powershell
+[System.Threading.EventWaitHandle]::OpenExisting('Global\AudioLevelMgr_Stop')
+```
+
+If it returns an object the process is running; if it throws, it is not.
 
 ## License
 

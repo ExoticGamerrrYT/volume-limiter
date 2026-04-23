@@ -5,7 +5,7 @@
  * Solo visible en la pestaña "Detalles" del Administrador de Tareas.
  *
  * Compilar (MSYS2 UCRT64):
- *   g++ main.cpp -o volume-limiter.exe -mwindows -static -O2 -s -std=c++17 -lole32 -loleaut32 -luuid
+ *   g++ main.cpp -o audmgr.exe -mwindows -static -O2 -s -std=c++17 -lole32 -loleaut32 -luuid
  *
  * Flags:
  *   -mwindows        -> Subsistema WINDOWS; sin consola
@@ -99,6 +99,12 @@ static float LoadMaxVolume()
 // ─────────────────────────────────────────────────────────────────────────────
 static IAudioEndpointVolume* g_pEndpointVolume = nullptr;
 
+// Evento nombrado para parada limpia desde stop.bat.
+// Nombre único que sirve también como identificador del proceso en ejecución.
+static HANDLE g_hStopEvent = nullptr;
+static constexpr wchar_t STOP_EVENT_NAME[]  = L"Global\\AudioLevelMgr_Stop";
+static constexpr wchar_t MUTEX_NAME[]       = L"Global\\AudioLevelMgr_Mutex";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Inicializa COM y obtiene el IAudioEndpointVolume del dispositivo predeterminado.
 // Devuelve true si tuvo éxito.
@@ -161,13 +167,28 @@ int WINAPI WinMain(
     (void)lpCmdLine;
     (void)nCmdShow;
 
+    // Instancia única: si ya corre otro proceso con este mutex, salir.
+    HANDLE hMutex = CreateMutexW(nullptr, TRUE, MUTEX_NAME);
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        CloseHandle(hMutex);
+        return 0;
+    }
+
+    // Evento nombrado de parada (para stop.bat y como identificador externo).
+    g_hStopEvent = CreateEventW(nullptr, TRUE, FALSE, STOP_EVENT_NAME);
+
     g_maxVolume = LoadMaxVolume();
 
     if (!InitAudio())
     {
         // Sin audio disponible: esperar y reintentar en el siguiente ciclo
         // (dispositivo aún no listo al arrancar, p. ej. en inicio de sesión).
-        for (;;) Sleep(TICK_INTERVAL_MS);
+        for (;;)
+        {
+            if (WaitForSingleObject(g_hStopEvent, TICK_INTERVAL_MS) != WAIT_TIMEOUT)
+                return 0;
+        }
     }
 
     // Waitable Timer periódico para CPU ≈ 0 % entre ciclos.
@@ -177,7 +198,8 @@ int WINAPI WinMain(
         for (;;)
         {
             DoWork();
-            Sleep(TICK_INTERVAL_MS);
+            if (WaitForSingleObject(g_hStopEvent, TICK_INTERVAL_MS) != WAIT_TIMEOUT)
+                return 0;
         }
     }
 
@@ -185,15 +207,21 @@ int WINAPI WinMain(
     liDueTime.QuadPart = -static_cast<LONGLONG>(TICK_INTERVAL_MS) * 10000LL;
     SetWaitableTimer(hTimer, &liDueTime, TICK_INTERVAL_MS, nullptr, nullptr, FALSE);
 
+    HANDLE handles[2] = { hTimer, g_hStopEvent };
     for (;;)
     {
-        if (WaitForSingleObject(hTimer, INFINITE) == WAIT_OBJECT_0)
+        DWORD dw = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+        if (dw == WAIT_OBJECT_0)
             DoWork();
+        else
+            break; // stop event señalado o error
     }
 
-    // Inalcanzable; limpieza formal.
+    // Limpieza formal.
     g_pEndpointVolume->Release();
     CloseHandle(hTimer);
+    CloseHandle(g_hStopEvent);
+    CloseHandle(hMutex);
     CoUninitialize();
     return 0;
 }
